@@ -22,7 +22,7 @@ FOLDER = "locations"
 file_name = "locations.csv"
 
 # 1. Load the data
-df = spark.read \
+locations_df = spark.read \
     .option("header", "true") \
     .option("inferSchema", "true") \
     .csv(f"{SOURCE_BUCKET}{FOLDER}/{file_name}")
@@ -30,18 +30,21 @@ df = spark.read \
 # 2. Rename columns
 rename_map = {"load_ts": "load_timestamp"}
 for old_name, new_name in rename_map.items():
-    if old_name in df.columns:
-        df = df.withColumnRenamed(old_name, new_name)
+    if old_name in locations_df.columns:
+        locations_df = locations_df.withColumnRenamed(old_name, new_name)
 
 # 3. Add metadata
-df = df.withColumn("ingestion_timestamp", current_timestamp()) \
-       .withColumn("file_name", lit(file_name))
+locations_trans_df = locations_df.withColumn("ingestion_timestamp", current_timestamp()) \
+                                 .withColumn("file_name", lit(file_name))
 
-# 4. Register as temp view
-df.createOrReplaceTempView("locations_temp_csv")
-
-# 5. Query and display
-spark.sql("SELECT * FROM locations_temp_csv").show(10, truncate=False)
+output_path = "s3://hrms-oracle-265475006349/bronze/raw/locations/"
+(
+    locations_trans_df
+    .write
+    .format("csv")     # specify delta format
+    .mode("overwrite")   # or "append"
+    .save(output_path)
+)
 
 # Commit Glue job
 job.commit()
