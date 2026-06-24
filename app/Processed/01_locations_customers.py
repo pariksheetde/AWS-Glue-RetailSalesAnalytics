@@ -34,15 +34,20 @@ glueContext = GlueContext(spark.sparkContext)
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
+# 
+glue_database="hrms"
+
 # --- READ FROM GLUE DATA CATALOG ---
 locations_dyf = glueContext.create_dynamic_frame.from_catalog(
-    database="hrms",
-    table_name="locations"
+    glue_database,
+    table_name="locations",
+    additional_options = {'useCatalogSchema': True, 'useSparkDataSource' : True}
 )
 
 customers_dyf = glueContext.create_dynamic_frame.from_catalog(
-    database="hrms",
-    table_name="customers"
+    glue_database,
+    table_name="customers",
+    additional_options = {'useCatalogSchema': True, 'useSparkDataSource' : True}
 )
 
 # Convert to DataFrames
