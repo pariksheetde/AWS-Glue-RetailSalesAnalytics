@@ -1,56 +1,50 @@
 import sys
-from pyspark.sql import SparkSession
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
+from awsglue.job import Job
 from pyspark.context import SparkContext
 from pyspark.sql.functions import current_timestamp, lit
 
-# Initialize Spark and Glue Context
+## @params: [JOB_NAME]
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+
+# Initialize Glue and Spark
 sc = SparkContext.getOrCreate()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 
-SOURCE_BUCKET = "hrms"
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+SOURCE_BUCKET = "s3://hrms-oracle-265475006349/bronze/"
 FOLDER = "locations"
 file_name = "locations.csv"
 
-# 1. Load the data FIRST
-# Use .option("inferSchema", "true") if you want Spark to guess data types (int, double, etc.)
+# 1. Load the data
 df = spark.read \
     .option("header", "true") \
     .option("inferSchema", "true") \
-    .csv(f"s3://{SOURCE_BUCKET}/{FOLDER}/{file_name}")
+    .csv(f"{SOURCE_BUCKET}{FOLDER}/{file_name}")
 
-# 2. Define the rename mapping
-rename_map = {
-    "circuitId": "circuit_id",
-    "circuitRef": "circuit_ref",
-    "lat": "latitude",
-    "lng": "longitude",
-    "alt": "altitude",
-}
-
-# 3. Apply renames and add metadata
+# 2. Rename columns
+rename_map = {"load_ts": "load_timestamp"}
 for old_name, new_name in rename_map.items():
     if old_name in df.columns:
         df = df.withColumnRenamed(old_name, new_name)
 
-# Adding ingestion timestamp (Standard practice in Glue ETL)
-df = df.withColumn("ingestion_timestamp", current_timestamp())\
+# 3. Add metadata
+df = df.withColumn("ingestion_timestamp", current_timestamp()) \
        .withColumn("file_name", lit(file_name))
 
-# 4. Register as a temporary view
+# 4. Register as temp view
 df.createOrReplaceTempView("locations_temp_csv")
 
-# 5. Query and Display
-spark.sql("""SELECT 
-             circuit_id,
-             circuit_ref,
-             name,
-             location,
-             country,
-             latitude,
-             longitude,
-             altitude,
-             ingestion_timestamp,
-             file_name
-             FROM locations_temp_csv""").show(10, truncate=False)
+# 5. Query and display
+spark.sql("SELECT * FROM locations_temp_csv").show(10, truncate=False)
+
+# Commit Glue job
+job.commit()
+
+# Stop Spark session
+spark.stop()
