@@ -1,3 +1,12 @@
+"""
+This script is an AWS Glue job that processes location data from a CSV file stored in an S3 bucket. It performs the following steps:
+1. Reads the `locations.csv` file from the specified S3 bucket and folder.
+2. Renames the `load_ts` column to `load_timestamp` for consistency.
+3. Adds metadata columns: `ingestion_timestamp` (current timestamp) and `file_name` (name of the source file).
+4. Writes the transformed data back to a specified S3 bucket in CSV format.
+"""
+
+
 import sys
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
