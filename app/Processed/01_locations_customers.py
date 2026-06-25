@@ -38,21 +38,21 @@ job.init(args['JOB_NAME'], args)
 glue_database="hrms"
 
 # --- READ FROM GLUE DATA CATALOG ---
-locations_dyf = glueContext.create_dynamic_frame.from_catalog(
+locations_df_from_catalog = glueContext.create_dynamic_frame.from_catalog(
     glue_database,
     table_name="locations",
     additional_options = {'useCatalogSchema': True, 'useSparkDataSource' : True}
 )
 
-customers_dyf = glueContext.create_dynamic_frame.from_catalog(
+customers_df_from_catalog = glueContext.create_dynamic_frame.from_catalog(
     glue_database,
     table_name="customers",
     additional_options = {'useCatalogSchema': True, 'useSparkDataSource' : True}
 )
 
 # Convert to DataFrames
-locations_df = locations_dyf.toDF()
-customers_df = customers_dyf.toDF()
+locations_df = locations_df_from_catalog.toDF()
+customers_df = customers_df_from_catalog.toDF()
 
 # Print schemas
 locations_df.printSchema()
