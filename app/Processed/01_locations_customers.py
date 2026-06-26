@@ -11,8 +11,6 @@ Note: This code assumes that the `locations` and `customers` tables have the spe
 """
 
 import sys
-import re
-import boto3
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
@@ -76,54 +74,21 @@ loc_cust_df.show(truncate=False)
 
 # --- WRITE TO S3 IN DELTA FORMAT ---
 bucket_name = "hrms-analytics-265475006349"
-output_prefix = "processed/locations_customers/"
-output_path = f"s3://{bucket_name}/{output_prefix}"
+output_path = f"s3://{bucket_name}/processed/locations_customers/"
 
 (
     loc_cust_df
     .write
-    .format("delta")   # ✅ Delta, not CSV
-    .mode("append")    # append ensures new partitions are added
+    .format("delta")     
+    .mode("overwrite")  # Use "overwrite" mode to replace existing data
     .option("mergeSchema", "true")
     .partitionBy("year", "month", "day")
     .save(output_path)
 )
 
-# --- APPLY PART LOGIC TO PARQUET FILES ---
-s3 = boto3.client("s3")
+print(f"Delta table written to {output_path}")
 
-# Find existing suffix
-objects = s3.list_objects_v2(Bucket=bucket_name, Prefix=output_prefix)
-max_suffix = 0
-pattern = re.compile(r"locations_customers_(\d+)_part\d+\.parquet")
-
-for obj in objects.get("Contents", []):
-    key = obj["Key"]
-    match = pattern.search(key)
-    if match:
-        suffix = int(match.group(1))
-        max_suffix = max(max_suffix, suffix)
-
-next_suffix = max_suffix + 1
-
-# Rename each parquet part file inside partition folders
-part_num = 1
-for obj in objects.get("Contents", []):
-    key = obj["Key"]
-    # Only rename parquet part files, leave _delta_log untouched
-    if key.endswith(".parquet") and "part" in key:
-        partition_path = "/".join(key.split("/")[:-1])  # keep year/month/day path
-        target_key = f"{partition_path}/locations_customers_{next_suffix:02d}_part{part_num}.parquet"
-        s3.copy_object(
-            Bucket=bucket_name,
-            CopySource={"Bucket": bucket_name, "Key": key},
-            Key=target_key
-        )
-        s3.delete_object(Bucket=bucket_name, Key=key)
-        part_num += 1
-
-print(f"Renamed {part_num-1} parquet files with prefix locations_customers_{next_suffix:02d}_partN.parquet")
-
+# COMMIT THE JOB
 job.commit()
 
 # STOP SPARK SESSION
